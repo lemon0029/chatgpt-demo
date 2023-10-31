@@ -1,4 +1,5 @@
 import { Slider } from './Slider'
+// @ts-ignore
 import type { SettingsUI, SettingsUISlider } from '@/types/provider'
 import type { Accessor } from 'solid-js'
 
