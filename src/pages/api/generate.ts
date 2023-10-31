@@ -56,5 +56,52 @@ export const post: APIRoute = async(context) => {
     }), { status: 500 })
   }) as Response
 
-  return parseOpenAIStream(response) as Response
+  let response1 = new Response(response.body, response);
+  let { readable, writable } = new TransformStream()
+  // @ts-ignore
+  stream(response.body, writable);
+
+  return parseOpenAIStream(new Response(readable, response1)) as Response
+}
+
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function stream(readable: ReadableStream<Uint8Array>, writable: WritableStream<any>) {
+  const reader = readable.getReader();
+  const writer = writable.getWriter();
+
+  // const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+// let decodedValue = decoder.decode(value);
+  const newline = "\n";
+  const delimiter = "\n\n"
+  const encodedNewline = encoder.encode(newline);
+
+  let buffer = "";
+  while (true) {
+    let { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true }); // stream: true is important here,fix the bug of incomplete line
+    let lines = buffer.split(delimiter);
+
+    // Loop through all but the last line, which may be incomplete.
+    for (let i = 0; i < lines.length - 1; i++) {
+      await writer.write(encoder.encode(lines[i] + delimiter));
+      await sleep(20);
+    }
+
+    buffer = lines[lines.length - 1];
+  }
+
+  if (buffer) {
+    await writer.write(encoder.encode(buffer));
+  }
+  await writer.write(encodedNewline)
+  await writer.close();
 }
